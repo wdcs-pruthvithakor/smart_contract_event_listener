@@ -1,28 +1,41 @@
 use crate::contract::{get_contract, process_event};
-use anyhow::{Context, Result};
+use crate::web3_client::Web3Client;
+use anyhow::Result;
 use futures::stream::StreamExt;
-use web3::Web3;
-use web3::{transports::WebSocket, types::Address};
+use tokio::time::{sleep, timeout, Duration};
+use web3::types::Address;
 
 pub struct EventListener {
-    web3: Web3<WebSocket>,
     contract_address: Address,
+    client: Web3Client,
 }
 
 impl EventListener {
-    pub fn new(web3: Web3<WebSocket>, contract_address: Address) -> Self {
+    pub fn new(client: Web3Client, contract_address: Address) -> Self {
         EventListener {
-            web3,
             contract_address,
+            client,
         }
     }
 
-    pub async fn listen_for_events(&self) -> Result<()> {
-        // ABI for the event we want to listen to
+    pub async fn listen_for_events(&mut self) -> Result<()> {
+        loop {
+            match self.subscribe_and_listen().await {
+                Ok(_) => break, // Successfully finished listening
+                Err(e) => {
+                    eprintln!("⚠️ Event listener error: {}. Retrying in 5 seconds...", e);
+                    sleep(Duration::from_secs(5)).await;
+                    self.client.reconnect().await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn subscribe_and_listen(&mut self) -> Result<()> {
         let event_signature = "NumberUpdatedEvent(address)";
         let event_signature_hash = web3::signing::keccak256(event_signature.as_bytes());
 
-        // Create filter for the event
         let filter = web3::types::FilterBuilder::default()
             .address(vec![self.contract_address])
             .topics(
@@ -33,26 +46,62 @@ impl EventListener {
             )
             .build();
 
-        // Get contract instance (to call retrieve() later)
-        let contract = get_contract(self.web3.eth(), self.contract_address).await?;
+        // Retry subscription until successful
+        loop {
+            let web3 = self.client.web3();
+            let contract = get_contract(web3.eth(), self.contract_address).await?;
 
-        // Create event subscription
-        let mut sub = self
-            .web3
-            .eth_subscribe()
-            .subscribe_logs(filter)
-            .await
-            .context("Failed to subscribe to logs")?;
-        println!("Listening for NumberUpdatedEvent...");
+            // Attempt to subscribe to the logs
+            match web3.eth_subscribe().subscribe_logs(filter.clone()).await {
+                Ok(mut sub) => {
+                    println!("📡 Listening for NumberUpdatedEvent...");
 
-        // Process events
-        while let Some(logs) = sub.next().await {
-            match logs {
-                Ok(log) => process_event(self.web3.clone(), contract.clone(), log).await?,
-                Err(err) => eprintln!("Error processing event: {:?}", err),
+                    // Process logs once subscribed
+                    loop {
+                        // Set a timeout for 30 seconds
+                        let event = timeout(Duration::from_secs(300), sub.next()).await;
+
+                        match event {
+                            Ok(Some(log)) => match log {
+                                Ok(log) => {
+                                    process_event(web3.clone(), contract.clone(), log).await?
+                                }
+                                Err(err) => {
+                                    eprintln!(
+                                        "⚠️ Error processing event: {:?}. Reconnecting...",
+                                        err
+                                    );
+                                    return Err(anyhow::anyhow!(
+                                        "Subscription failed, reconnecting..."
+                                    ));
+                                }
+                            },
+                            Ok(None) => {
+                                // This means the stream was closed, break the loop
+                                println!("Stream closed");
+                                break;
+                            }
+                            Err(_) => {
+                                // Timeout reached, reconnect or retry
+                                println!("Timeout waiting for event, trying again...");
+                                break;
+                            }
+                        }
+                    }
+                    // Reconnect and re-subscribe after failure
+                    println!("Reconnecting...");
+                    self.client.reconnect().await?;
+                }
+                Err(e) => {
+                    eprintln!(
+                        "⚠️ Failed to subscribe to logs: {}. Retrying in 5 seconds...",
+                        e
+                    );
+                    sleep(Duration::from_secs(5)).await;
+                    // Reconnect and re-subscribe after failure
+                    self.client.reconnect().await?;
+                }
             }
         }
-
-        Ok(())
     }
 }

@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     println!("Monitoring contract at: {:#x}", contract_address);
 
     // Create EventListener instance
-    let listener = EventListener::new(client.web3(), contract_address);
+    let mut listener = EventListener::new(client, contract_address);
     listener.listen_for_events().await?;
 
     Ok(())

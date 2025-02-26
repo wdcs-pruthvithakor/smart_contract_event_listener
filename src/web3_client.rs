@@ -42,6 +42,20 @@ impl Web3Client {
         Ok(())
     }
 
+    pub async fn reconnect(&mut self) -> Result<()> {
+        println!("🔄 Attempting to reconnect...");
+        self.connect_with_retry().await
+    }
+
+    // pub async fn ping(&self) -> Result<()> {
+    //     let web3 = self.web3().clone();
+    //     // Send a lightweight eth_block_number call to check the connection
+    //     match web3.eth().block_number().await {
+    //         Ok(_) => Ok(()), // Connection is alive
+    //         Err(e) => Err(anyhow::anyhow!("Ping failed: {}", e)),
+    //     }
+    // }
+
     pub fn web3(&self) -> Web3<WebSocket> {
         self.web3.clone().expect("Failed to get web3 context")
     }
