@@ -31,6 +31,11 @@ async fn main() -> Result<()> {
 
     // Create EventListener instance
     let mut listener = EventListener::new(client, contract_address);
+
+    // Fetch past events first
+    listener.fetch_past_events().await?;
+
+    // Now listen for new events
     listener.listen_for_events().await?;
 
     Ok(())

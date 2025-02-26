@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use web3::transports::WebSocket;
 use web3::{
     contract::{Contract, Options},
-    types::{Address, Log, H160, U256},
+    types::{Address, Log, H160, U256, H256, U64},
     Web3,
 };
 
@@ -61,6 +61,7 @@ pub async fn process_event(
     web3: Web3<WebSocket>,
     contract: Contract<WebSocket>,
     log: Log,
+    is_previous: bool,
 ) -> Result<()> {
     let tx_hash = log
         .transaction_hash
@@ -89,12 +90,28 @@ pub async fn process_event(
         .context("Failed to query retrieve function")?;
 
     // Print event information
-    println!("\n===== Event Detected =====");
-    println!("Transaction: {:#x}", tx_hash);
-    println!("Block: {}", block_number);
-    println!("Sender: {:#x}", sender_address);
-    println!("New Value: {}", number);
-    println!("==========================\n");
+    display_information(tx_hash, block_number, sender_address, number, is_previous);
 
     Ok(())
+}
+
+fn display_information(tx_hash: H256, block_number: U64, sender_address: H160, number: U256, is_previous: bool) {
+    if is_previous { 
+        // Print event information
+        println!("\n======= Event =======");
+        println!("Transaction: {:#x}", tx_hash);
+        println!("Block: {}", block_number);
+        println!("Sender: {:#x}", sender_address);
+        println!("New Value: {}", number);
+        println!("==========================\n");
+    } else {
+        // Print event information
+        println!("\n===== Event Detected =====");
+        println!("Transaction: {:#x}", tx_hash);
+        println!("Block: {}", block_number);
+        println!("Sender: {:#x}", sender_address);
+        println!("New Value: {}", number);
+        println!("==========================\n");
+    }
+
 }
