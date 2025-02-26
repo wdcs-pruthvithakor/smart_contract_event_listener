@@ -32,6 +32,36 @@ impl EventListener {
         Ok(())
     }
 
+    pub async fn fetch_past_events(&self) -> Result<()> {
+        let event_signature = "NumberUpdatedEvent(address)";
+        let event_signature_hash = web3::signing::keccak256(event_signature.as_bytes());
+
+        let filter = web3::types::FilterBuilder::default()
+            .address(vec![self.contract_address])
+            .from_block(web3::types::BlockNumber::Number(0.into()))  // Start from the first block
+            .to_block(web3::types::BlockNumber::Latest)  // Up to the latest block    
+            .topics(
+                Some(vec![web3::types::H256::from_slice(&event_signature_hash)]),
+                None,
+                None,
+                None,
+            )
+            .build();
+
+        // Fetch logs for past events
+        let web3 = self.client.web3();
+        let logs = web3.eth().logs(filter).await?;
+
+        println!("Fetched {} past events", logs.len());
+
+        // Process each log
+        for log in logs {
+            process_event(web3.clone(), get_contract(web3.eth(), self.contract_address).await?, log, true).await?;
+        }
+
+        Ok(())
+    }
+
     async fn subscribe_and_listen(&mut self) -> Result<()> {
         let event_signature = "NumberUpdatedEvent(address)";
         let event_signature_hash = web3::signing::keccak256(event_signature.as_bytes());
@@ -64,7 +94,7 @@ impl EventListener {
                         match event {
                             Ok(Some(log)) => match log {
                                 Ok(log) => {
-                                    process_event(web3.clone(), contract.clone(), log).await?
+                                    process_event(web3.clone(), contract.clone(), log, false).await?
                                 }
                                 Err(err) => {
                                     eprintln!(
