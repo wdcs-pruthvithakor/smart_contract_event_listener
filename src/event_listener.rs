@@ -38,8 +38,8 @@ impl EventListener {
 
         let filter = web3::types::FilterBuilder::default()
             .address(vec![self.contract_address])
-            .from_block(web3::types::BlockNumber::Number(0.into()))  // Start from the first block
-            .to_block(web3::types::BlockNumber::Latest)  // Up to the latest block    
+            .from_block(web3::types::BlockNumber::Number(0.into())) // Start from the first block
+            .to_block(web3::types::BlockNumber::Latest) // Up to the latest block
             .topics(
                 Some(vec![web3::types::H256::from_slice(&event_signature_hash)]),
                 None,
@@ -56,7 +56,13 @@ impl EventListener {
 
         // Process each log
         for log in logs {
-            process_event(web3.clone(), get_contract(web3.eth(), self.contract_address).await?, log, true).await?;
+            process_event(
+                web3.clone(),
+                get_contract(web3.eth(), self.contract_address).await?,
+                log,
+                true,
+            )
+            .await?;
         }
 
         Ok(())
@@ -94,7 +100,8 @@ impl EventListener {
                         match event {
                             Ok(Some(log)) => match log {
                                 Ok(log) => {
-                                    process_event(web3.clone(), contract.clone(), log, false).await?
+                                    process_event(web3.clone(), contract.clone(), log, false)
+                                        .await?
                                 }
                                 Err(err) => {
                                     eprintln!(
