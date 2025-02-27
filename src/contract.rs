@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use web3::transports::WebSocket;
 use web3::{
     contract::{Contract, Options},
-    types::{Address, Log, H160, U256, H256, U64},
+    types::{Address, BlockId, Log, H160, H256, U256, U64},
     Web3,
 };
 
@@ -83,9 +83,15 @@ pub async fn process_event(
         tx.from.unwrap_or_default()
     };
 
-    // Get current number value using retrieve()
+    // Query the contract's state at the specific block number
     let number: U256 = contract
-        .query("retrieve", (), None, Options::default(), None)
+        .query(
+            "retrieve", // Function name in the contract
+            (),         // No input parameters
+            None,       // No specific sender address (use default)
+            Options::default(),
+            Some(BlockId::Number(block_number.into())), // Specify block number for query
+        )
         .await
         .context("Failed to query retrieve function")?;
 
@@ -95,8 +101,14 @@ pub async fn process_event(
     Ok(())
 }
 
-fn display_information(tx_hash: H256, block_number: U64, sender_address: H160, number: U256, is_previous: bool) {
-    if is_previous { 
+fn display_information(
+    tx_hash: H256,
+    block_number: U64,
+    sender_address: H160,
+    number: U256,
+    is_previous: bool,
+) {
+    if is_previous {
         // Print event information
         println!("\n======= Event =======");
         println!("Transaction: {:#x}", tx_hash);
@@ -113,5 +125,4 @@ fn display_information(tx_hash: H256, block_number: U64, sender_address: H160, n
         println!("New Value: {}", number);
         println!("==========================\n");
     }
-
 }

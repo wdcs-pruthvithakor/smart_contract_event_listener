@@ -131,33 +131,51 @@ For local testing, you can use Hardhat to deploy the contract and trigger events
 3. Use the provided JavaScript script to trigger events:
    ```javascript
    require("dotenv").config();
-   const { ethers } = require("ethers");
-   
+   const { ethers } = require("ethers");  // Correct import for ethers v6
+
    // Load environment variables
    const RPC_URL = process.env.NODE_URL;
    const PRIVATE_KEY = process.env.PRIVATE_KEY;
    const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
-   
+   const N = 5;  // Set how many times you want to run the loop
+
    async function main() {
-       const provider = new ethers.JsonRpcProvider(RPC_URL);
-       const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-   
-       const contractABI = [
-           "function store(uint256 num) public",
-           "function retrieve() public view returns (uint256)"
-       ];
-   
-       const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
-   
-       console.log("Storing number...");
-       const tx = await contract.store(8);
-       await tx.wait();
-       console.log(`Transaction hash: ${tx.hash}`);
-   
-       const storedValue = await contract.retrieve();
-       console.log(`Stored value: ${storedValue.toString()}`);
+      // Use ethers v6-style provider initialization
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+
+      // Contract ABI (minimum needed)
+      const contractABI = [
+         "function store(uint256 num) public",
+         "function retrieve() public view returns (uint256)"
+      ];
+
+      // Connect to the deployed contract
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
+
+      for (let i = 0; i < N; i++) {
+         // Generate a random number between 1 and 1000
+         const randomNumber = Math.floor(Math.random() * 1000) + 1;
+
+         console.log(`(${i + 1}/${N}) Storing random number: ${randomNumber}`);
+
+         try {
+               // Call the store function with the random number
+               const tx = await contract.store(randomNumber);
+               await tx.wait();  // Wait for transaction to be mined
+               console.log(`Transaction hash: ${tx.hash}`);
+
+               // Retrieve and verify the stored value
+               const storedValue = await contract.retrieve();
+               console.log(`Stored value: ${storedValue.toString()}\n`);
+         } catch (error) {
+               console.error(`Error in iteration ${i + 1}:`, error);
+         }
+      }
+
+      console.log("All transactions completed.");
    }
-   
+
    main().catch(console.error);
    ```
 
